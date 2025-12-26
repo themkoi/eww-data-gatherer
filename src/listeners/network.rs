@@ -1,6 +1,8 @@
 use serde::Serialize;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
+use std::thread;
+use std::time::Duration;
 
 #[derive(Serialize)]
 struct WifiStatus {
@@ -9,6 +11,7 @@ struct WifiStatus {
 }
 
 fn get_wifi_status() -> WifiStatus {
+    // Get signal of currently active Wi-Fi
     let signal = Command::new("nmcli")
         .args(&["-f", "in-use,signal", "dev", "wifi"])
         .output()
@@ -23,6 +26,7 @@ fn get_wifi_status() -> WifiStatus {
         })
         .unwrap_or_else(|| "0".to_string());
 
+    // Get currently active ESSID
     let essid = Command::new("nmcli")
         .args(&["-t", "-f", "NAME", "connection", "show", "--active"])
         .output()
@@ -35,6 +39,19 @@ fn get_wifi_status() -> WifiStatus {
 }
 
 pub fn run() {
+    // Print initial status immediately
+    thread::sleep(Duration::from_millis(50));
+    let status = get_wifi_status();
+    {
+        let mut out = std::io::stdout().lock();
+        writeln!(out, "{}", serde_json::to_string(&status).unwrap()).unwrap();
+        out.flush().unwrap();
+    }
+
+    // Small sleep to stabilize interfaces
+    thread::sleep(Duration::from_millis(50));
+
+    // Start ip monitor
     let mut ip_monitor = Command::new("ip")
         .args(&["monitor", "link"])
         .stdout(Stdio::piped())
@@ -44,13 +61,11 @@ pub fn run() {
     let stdout = ip_monitor.stdout.take().unwrap();
     let reader = BufReader::new(stdout);
 
-    let status = get_wifi_status();
-    println!("{}", serde_json::to_string(&status).unwrap());
-    std::io::stdout().flush().unwrap();
-
     for _line in reader.lines() {
+        // On any interface change, print updated status
         let status = get_wifi_status();
-        println!("{}", serde_json::to_string(&status).unwrap());
-        std::io::stdout().flush().unwrap();
+        let mut out = std::io::stdout().lock();
+        writeln!(out, "{}", serde_json::to_string(&status).unwrap()).unwrap();
+        out.flush().unwrap();
     }
 }

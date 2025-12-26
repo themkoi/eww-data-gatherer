@@ -12,7 +12,7 @@ fn print_help() {
     println!("  -v, --version    Print version information");
     println!();
     println!("Commands:");
-    println!("  listener <type>  Start a listener. Types: brightness, network, player, volume, auto_idle");
+    println!("  listener <type>  Start a listener. Types: brightness, network, player, volume, auto_idle, bluetooth");
     println!("  action <name>    Perform an action. Supported: toggleIdle");
     println!("Other messages are simply sent with 'Message sent'");
 }
@@ -48,6 +48,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             listeners::volume::run();
         } else if arg == "auto_idle" {
             listeners::auto_idle::run();
+        } else if arg == "bluetooth" {
+            listeners::bluetooth::run();
         }
     } else if arg == "action" {
         let arg = &args[2];
