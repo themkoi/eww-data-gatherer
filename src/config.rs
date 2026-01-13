@@ -13,20 +13,24 @@ pub fn get_config() -> &'static DaemonConfig {
 pub struct DaemonConfig {
     pub brightness_path: String,
     pub idle_manager: String,
+    pub idle_start_script: String,
     pub ipc_socket: String,
+    pub com_on_output: String,
 }
 
 fn default_config() -> DaemonConfig {
     DaemonConfig {
         brightness_path: "/sys/class/backlight/amdgpu_bl1".to_string(),
         idle_manager: "swayidle".to_string(),
+        idle_start_script: "/Documents/scripts/niri/launch-idle-manage.sh".to_string(),
         ipc_socket: "/tmp/eww-res-daemon.sock".to_string(),
+        com_on_output: "eww reload".to_string(),
     }
 }
 
 fn get_config_file() -> PathBuf {
     let mut path = config_dir().unwrap();
-    path.push("eww-res-daemon");
+    path.push("eww-manager");
     fs::create_dir_all(&path).unwrap();
     path.push("config.toml");
     path

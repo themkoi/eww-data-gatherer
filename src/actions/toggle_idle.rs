@@ -36,8 +36,9 @@ pub fn action() {
     } else {
         send_notification("swayidle Status", "swayidle is not running. Starting it...");
         let launch_script = format!(
-            "{}/Documents/scripts/niri/launch-idle-manage.sh",
-            std::env::var("HOME").unwrap()
+            "{}{}",
+            std::env::var("HOME").unwrap(),
+            cfg.idle_start_script
         );
 
         thread::spawn(move || {

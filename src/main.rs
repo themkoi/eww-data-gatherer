@@ -2,10 +2,12 @@ use std::{env, error::Error};
 mod actions;
 pub mod config;
 mod listeners;
+mod manager;
+
 
 fn print_help() {
-    println!("ewwDataGatherer {}", env!("CARGO_PKG_VERSION"));
-    println!("Usage: ewwDataGatherer [OPTIONS] <COMMAND> <args>");
+    println!("ewwManager {}", env!("CARGO_PKG_VERSION"));
+    println!("Usage: ewwManager [OPTIONS] <COMMAND> <args>");
     println!();
     println!("Options:");
     println!("  -h, --help       Print this help message");
@@ -17,9 +19,7 @@ fn print_help() {
     println!("Other messages are simply sent with 'Message sent'");
 }
 
-
 fn main() -> Result<(), Box<dyn Error>> {
-
     env_logger::init_from_env(
         env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "off"),
     );
@@ -57,6 +57,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         if arg == "toggleIdle" {
             actions::toggle_idle::action();
         }
+    } else if arg == "manager" {
+        manager::run()?;
     } else {
         println!("Message sent");
     }
