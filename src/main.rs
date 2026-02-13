@@ -1,4 +1,6 @@
 use std::{env, error::Error};
+
+use log::debug;
 mod actions;
 pub mod config;
 mod listeners;
@@ -37,7 +39,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     } else if arg == "listener" {
         let arg = &args[2];
-        println!("starting listener {}", arg);
+        debug!("starting listener {}", arg);
         if arg == "brightness" {
             listeners::brightness::run();
         } else if arg == "network" {
@@ -50,6 +52,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             listeners::auto_idle::run();
         } else if arg == "bluetooth" {
             listeners::bluetooth::run();
+        } else if arg == "power_profile" {
+            listeners::power_profile::run();
         }
     } else if arg == "action" {
         let arg = &args[2];
