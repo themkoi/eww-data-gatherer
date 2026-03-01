@@ -54,6 +54,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             listeners::bluetooth::run();
         } else if arg == "power_profile" {
             listeners::power_profile::run();
+        } else if arg == "hid_bat" {
+            listeners::hid_bat::run();
         }
     } else if arg == "action" {
         let arg = &args[2];

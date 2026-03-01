@@ -1,35 +1,25 @@
-use std::process::{Command, Stdio};
-use std::io::{BufRead, BufReader, Write};
+use std::{thread, time::Duration, process::Command, io::{Write, stdout}};
 use serde::Serialize;
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct TrackInfo {
-    name: String,
     title: String,
     artist: String,
-    art_url: String,
-    status: String,
-    length: String,
+    length: i64,
+    progress: i64,
     length_str: String,
+    progress_str: String,
 }
 
-fn parse_track_info(raw: &str) -> TrackInfo {
-    // Parse raw JSON using serde_json
-    let v: serde_json::Value = serde_json::from_str(raw).unwrap_or_default();
+fn seconds_to_mmss(sec: i64) -> String {
+    let m = sec / 60;
+    let s = sec % 60;
+    format!("{:01}:{:02}", m, s)
+}
 
-    let length = v.get("length")
-        .and_then(|l| l.as_i64())
-        .map(|l| ((l + 500_000) / 1_000_000).to_string())
-        .unwrap_or_default();
-
-    let art_url = v.get("artUrl")
-        .and_then(|a| a.as_str())
-        .unwrap_or("")
-        .trim_start_matches("file://")
-        .to_string();
-
-    let length_str = Command::new("playerctl")
-        .args(&["metadata", "-f", "{{duration(mpris:length)}}"])
+fn get_length() -> (i64, String) {
+    let len_str = Command::new("playerctl")
+        .args(&["metadata", "--format", "{{duration(mpris:length)}}"])
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
@@ -37,33 +27,76 @@ fn parse_track_info(raw: &str) -> TrackInfo {
         .trim()
         .to_string();
 
-    TrackInfo {
-        name: v.get("name").and_then(|s| s.as_str()).unwrap_or("").to_string(),
-        title: v.get("title").and_then(|s| s.as_str()).unwrap_or("").to_string(),
-        artist: v.get("artist").and_then(|s| s.as_str()).unwrap_or("").to_string(),
-        art_url,
-        status: v.get("status").and_then(|s| s.as_str()).unwrap_or("").to_string(),
-        length,
-        length_str,
-    }
+    let len = {
+        let parts: Vec<&str> = len_str.split(':').collect();
+        if parts.len() == 2 {
+            parts[0].parse::<i64>().unwrap_or(0) * 60 + parts[1].parse::<i64>().unwrap_or(0)
+        } else { 0 }
+    };
+
+    (len, len_str)
+}
+
+fn get_progress() -> i64 {
+    Command::new("playerctl")
+        .args(&["position"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|s| s.trim().parse::<f64>().ok())
+        .map(|f| f as i64)
+        .unwrap_or(0)
 }
 
 pub fn run() {
-    let mut playerctl = Command::new("playerctl")
-        .args(&["metadata", "-F", "-f",
-                r#"{"name":"{{playerName}}","title":"{{title}}","artist":"{{artist}}","artUrl":"{{mpris:artUrl}}","status":"{{status}}","length":"{{mpris:length}}"}"#])
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
+    // Get initial metadata
+    let mut last_title = String::new();
+    let mut last_artist = String::new();
+    let mut last_length = 0;
+    let mut last_length_str = String::new();
 
-    let stdout = playerctl.stdout.take().unwrap();
-    let reader = BufReader::new(stdout);
+    loop {
+        // Query metadata
+        let title = Command::new("playerctl")
+            .args(&["metadata", "--format", "{{title}}"])
+            .output().ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .unwrap_or_default()
+            .trim().to_string();
 
-    for line in reader.lines() {
-        if let Ok(raw) = line {
-            let track = parse_track_info(&raw);
-            println!("{}", serde_json::to_string(&track).unwrap());
-            std::io::stdout().flush().unwrap();
-        }
+        let artist = Command::new("playerctl")
+            .args(&["metadata", "--format", "{{artist}}"])
+            .output().ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .unwrap_or_default()
+            .trim().to_string();
+
+        let (length, length_str) = if title != last_title || artist != last_artist {
+            get_length()
+        } else {
+            (last_length, last_length_str.clone())
+        };
+
+        last_title = title.clone();
+        last_artist = artist.clone();
+        last_length = length;
+        last_length_str = length_str.clone();
+
+        // Query progress
+        let progress = get_progress();
+
+        let track = TrackInfo {
+            title: title.clone(),
+            artist: artist.clone(),
+            length,
+            progress,
+            length_str: length_str.clone(),
+            progress_str: seconds_to_mmss(progress),
+        };
+
+        println!("{}", serde_json::to_string(&track).unwrap());
+        stdout().flush().unwrap();
+
+        thread::sleep(Duration::from_millis(500));
     }
 }

@@ -5,3 +5,4 @@ pub mod player;
 pub mod auto_idle;
 pub mod bluetooth;
 pub mod power_profile;
+pub mod hid_bat;
