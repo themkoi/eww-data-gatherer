@@ -9,6 +9,7 @@ struct TrackInfo {
     progress: i64,
     length_str: String,
     progress_str: String,
+    art_url: String,
 }
 
 fn seconds_to_mmss(sec: i64) -> String {
@@ -48,15 +49,25 @@ fn get_progress() -> i64 {
         .unwrap_or(0)
 }
 
+fn get_art_url() -> String {
+    Command::new("playerctl")
+        .args(&["metadata", "--format", "{{mpris:artUrl}}"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
 pub fn run() {
-    // Get initial metadata
     let mut last_title = String::new();
     let mut last_artist = String::new();
     let mut last_length = 0;
     let mut last_length_str = String::new();
+    let mut last_art_url = String::new();
 
     loop {
-        // Query metadata
         let title = Command::new("playerctl")
             .args(&["metadata", "--format", "{{title}}"])
             .output().ok()
@@ -77,12 +88,18 @@ pub fn run() {
             (last_length, last_length_str.clone())
         };
 
+        let art_url = if title != last_title || artist != last_artist {
+            get_art_url()
+        } else {
+            last_art_url.clone()
+        };
+
         last_title = title.clone();
         last_artist = artist.clone();
         last_length = length;
         last_length_str = length_str.clone();
+        last_art_url = art_url.clone();
 
-        // Query progress
         let progress = get_progress();
 
         let track = TrackInfo {
@@ -92,6 +109,7 @@ pub fn run() {
             progress,
             length_str: length_str.clone(),
             progress_str: seconds_to_mmss(progress),
+            art_url,
         };
 
         println!("{}", serde_json::to_string(&track).unwrap());
