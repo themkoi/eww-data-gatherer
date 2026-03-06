@@ -6,7 +6,6 @@ pub mod config;
 mod listeners;
 mod manager;
 
-
 fn print_help() {
     println!("ewwManager {}", env!("CARGO_PKG_VERSION"));
     println!("Usage: ewwManager [OPTIONS] <COMMAND> <args>");
@@ -62,6 +61,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("running action {}", arg);
         if arg == "toggleIdle" {
             actions::toggle_idle::action();
+        } else if arg == "toggleWinow" {
+            let winows = &args[3..];
+            actions::toggle_window::action(winows);
         }
     } else if arg == "manager" {
         manager::run()?;

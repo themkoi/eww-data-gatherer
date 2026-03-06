@@ -16,6 +16,9 @@ pub struct DaemonConfig {
     pub idle_start_script: String,
     pub ipc_socket: String,
     pub com_on_output: String,
+
+    pub modules: Vec<String>,
+    pub anim_duration: f32,
 }
 
 fn default_config() -> DaemonConfig {
@@ -25,6 +28,14 @@ fn default_config() -> DaemonConfig {
         idle_start_script: "/Documents/scripts/niri/launch-idle-manage.sh".to_string(),
         ipc_socket: "/tmp/eww-res-daemon.sock".to_string(),
         com_on_output: "eww reload".to_string(),
+
+        modules: vec![
+            "control_center".to_string(),
+            "date".to_string(),
+            "power_menu".to_string(),
+            "profile_selector".to_string(),
+        ],
+        anim_duration: 0.2,
     }
 }
 
@@ -37,7 +48,7 @@ fn get_config_file() -> PathBuf {
 }
 
 fn write_config<P: AsRef<Path>>(path: P, config: &DaemonConfig) -> std::io::Result<()> {
-    let toml_string = toml::to_string_pretty(config).expect("Failed to serialize config");
+    let toml_string = toml::to_string_pretty(config).unwrap();
     fs::write(path, toml_string)
 }
 
@@ -50,7 +61,7 @@ pub fn load_or_create_config() -> Result<DaemonConfig, Box<dyn std::error::Error
     }
 
     let loaded = ConfigLoader::builder()
-        .add_source(File::with_name(path.to_str().unwrap()))
+        .add_source(File::from(path.clone()))
         .build()?
         .try_deserialize::<DaemonConfig>()?;
 

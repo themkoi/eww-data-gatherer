@@ -1,6 +1,8 @@
 use std::{io::{Read, Write}, os::unix::net::UnixStream};
 
 pub mod toggle_idle;
+pub mod toggle_window;
+
 
 use crate::config;
 
