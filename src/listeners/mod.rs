@@ -6,3 +6,5 @@ pub mod auto_idle;
 pub mod bluetooth;
 pub mod power_profile;
 pub mod hid_bat;
+pub mod output_audio;
+pub mod playback_audio;

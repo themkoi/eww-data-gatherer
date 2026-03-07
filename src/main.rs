@@ -55,6 +55,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             listeners::power_profile::run();
         } else if arg == "hid_bat" {
             listeners::hid_bat::run();
+        } else if arg == "output_audio" {
+            listeners::output_audio::run();
+        } else if arg == "playback_audio" {
+            listeners::playback_audio::run();
         }
     } else if arg == "action" {
         let arg = &args[2];
