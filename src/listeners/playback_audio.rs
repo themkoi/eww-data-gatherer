@@ -195,6 +195,32 @@ fn print_state(map: &HashMap<u32, SinkInput>) {
     std::io::stdout().flush().unwrap();
 }
 
+fn only_volume_changed(
+    old: &HashMap<u32, SinkInput>,
+    new: &HashMap<u32, SinkInput>,
+) -> bool {
+    if old.len() != new.len() {
+        return false;
+    }
+
+    for (idx, new_s) in new {
+        let Some(old_s) = old.get(idx) else {
+            return false;
+        };
+
+        if old_s.name != new_s.name
+            || old_s.media_name != new_s.media_name
+            || old_s.muted != new_s.muted
+            || old_s.sink_id != new_s.sink_id
+            || old_s.sink_name != new_s.sink_name
+        {
+            return false;
+        }
+    }
+
+    true
+}
+
 pub fn run() {
     let mut child = Command::new("pactl")
         .arg("subscribe")
@@ -205,7 +231,7 @@ pub fn run() {
     let stdout = child.stdout.take().unwrap();
     let mut lines = BufReader::new(stdout).lines();
 
-    let debounce = Duration::from_millis(300);
+    let debounce = Duration::from_millis(400);
 
     let mut last_state = parse_sink_inputs();
     print_state(&last_state);
@@ -217,10 +243,19 @@ pub fn run() {
         if let Some(Ok(line)) = lines.next() {
             if line.contains("sink-input") || line.contains("sink") {
                 let new_state = parse_sink_inputs();
+
                 if new_state != last_state {
+                    let volume_only = only_volume_changed(&last_state, &new_state);
+
                     last_state = new_state;
-                    last_change = Instant::now();
-                    pending = true;
+
+                    if volume_only {
+                        last_change = Instant::now();
+                        pending = true;
+                    } else {
+                        print_state(&last_state);
+                        pending = false;
+                    }
                 }
             }
         }

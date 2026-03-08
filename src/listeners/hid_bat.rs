@@ -1,6 +1,6 @@
-use std::process::{Command, Stdio};
-use std::io::{BufReader, BufRead, Write};
 use serde::Serialize;
+use std::io::{BufRead, BufReader, Write};
+use std::process::{Command, Stdio};
 
 #[derive(Serialize, Clone, Default)]
 struct HidBattery {
@@ -18,10 +18,7 @@ struct Devices {
 
 // Parse a single UPower device (HID battery)
 fn parse_device_info(path: &str) -> Option<HidBattery> {
-    let output = Command::new("upower")
-        .args(&["-i", path])
-        .output()
-        .ok()?;
+    let output = Command::new("upower").args(&["-i", path]).output().ok()?;
 
     let text = String::from_utf8_lossy(&output.stdout);
     let mut device = HidBattery::default();
@@ -35,7 +32,12 @@ fn parse_device_info(path: &str) -> Option<HidBattery> {
         }
 
         if l.starts_with("percentage:") {
-            if let Ok(num) = l.replace("percentage:", "").replace("%", "").trim().parse::<u8>() {
+            if let Ok(num) = l
+                .replace("percentage:", "")
+                .replace("%", "")
+                .trim()
+                .parse::<u8>()
+            {
                 device.percentage = num;
             }
         }
@@ -45,19 +47,11 @@ fn parse_device_info(path: &str) -> Option<HidBattery> {
         }
     }
 
-    if device.percentage == 0 && device.state != "Charging" {
-        None
-    } else {
-        Some(device)
-    }
+    Some(device)
 }
 
-// Get all HID battery devices, skipping internal batteries
 fn get_all_devices() -> Vec<HidBattery> {
-    let output = Command::new("upower")
-        .arg("-e")
-        .output()
-        .unwrap();
+    let output = Command::new("upower").arg("-e").output().unwrap();
 
     let list = String::from_utf8_lossy(&output.stdout);
 
@@ -81,7 +75,10 @@ fn print_all(limit: usize) {
     let shown: Vec<HidBattery> = all.iter().take(limit).cloned().collect();
     let remaining = all.len().saturating_sub(limit);
 
-    let wrapper = Devices { devices: shown, remaining };
+    let wrapper = Devices {
+        devices: shown,
+        remaining,
+    };
     println!("{}", serde_json::to_string(&wrapper).unwrap());
     std::io::stdout().flush().unwrap();
 }
