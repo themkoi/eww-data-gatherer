@@ -18,7 +18,7 @@ pub struct DaemonConfig {
     pub com_on_output: String,
 
     pub modules: Vec<String>,
-    pub anim_duration: f32,
+    pub anim_duration: u16,
 }
 
 fn default_config() -> DaemonConfig {
@@ -33,9 +33,8 @@ fn default_config() -> DaemonConfig {
             "control_center".to_string(),
             "date".to_string(),
             "power_menu".to_string(),
-            "profile_selector".to_string(),
         ],
-        anim_duration: 0.2,
+        anim_duration: 200,
     }
 }
 

@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::process::{exit, Command};
 use std::thread;
 use std::time::Duration;
 
@@ -23,120 +23,164 @@ fn run(cmd: &str, args: &[&str]) -> String {
 }
 
 fn run_bg(cmd: &str, args: &[&str]) {
-    println!("[run_bg] {} {:?}", cmd, args);
-
-    match Command::new(cmd).args(args).spawn() {
-        Ok(_) => {}
-        Err(e) => println!("[run_bg error] {}", e),
-    }
+    println!("[run] {} {:?}", cmd, args);
+    Command::new(cmd).args(args).spawn().unwrap();
 }
 
-fn open_module(module: &str) {
+fn get_active_windows() -> Vec<String> {
+    let out = run("eww", &["active-windows"]);
+
+    out.lines()
+        .filter_map(|l| l.split(':').next())
+        .map(|s| s.trim().to_string())
+        .collect()
+}
+
+fn window_is_open(active: &[String], name: &str) -> bool {
+    active.iter().any(|w| w == name)
+}
+
+fn open_module(module: &str, active: &[String]) {
     let cfg = get_config();
     let modules = cfg.modules.clone();
     let anim = cfg.anim_duration;
+    if !window_is_open(active, "closer") {
+        run_bg("eww", &["open", "closer"]);
+    }
+    thread::sleep(Duration::from_millis(10));
 
     let state_var = format!("open_{}", module);
 
-    // open closer first
-    run_bg("eww", &["open", "closer"]);
-
-    // check if window exists
-    let windows = run("eww", &["list-windows"]);
-    if !windows.contains(&format!("*{}", module)) {
+    // open window if needed
+    if !window_is_open(active, module) {
         run_bg("eww", &["open", module]);
-        thread::sleep(Duration::from_millis(50));
+    }
+    thread::sleep(Duration::from_millis(anim.into()));
+
+    // update state
+    run("eww", &["update", &format!("{}=true", state_var)]);
+
+    // close other module states
+    let updates = modules
+        .iter()
+        .filter(|m| *m != module)
+        .map(|m| format!("open_{}=false", m))
+        .collect::<Vec<_>>()
+        .join(",");
+
+    if !updates.is_empty() {
+        run("eww", &["update", &updates]);
     }
 
-    run_bg("eww", &["update", &format!("{}=true", state_var)]);
+    // close other open windows
+    let mut close_args = vec!["close"];
 
-    // close other modules
-    for m in &modules {
-        if m != module {
-            run_bg("eww", &["update", &format!("open_{}=false", m)]);
+    for m in modules.iter().filter(|m| m.as_str() != module) {
+        if window_is_open(active, m) {
+            close_args.push(m);
         }
     }
 
-    // wait for animation duration and close other windows
-    thread::sleep(Duration::from_secs_f32(anim));
-    for m in &modules {
-        if m != module {
-            run_bg("eww", &["close", m]);
-        }
+    if close_args.len() > 1 {
+        thread::sleep(Duration::from_millis(anim.into()));
+        run("eww", &close_args);
     }
 }
 
-fn close_module(module: &str) {
+fn close_module(module: &str, active: &[String]) {
     let cfg = get_config();
     let anim = cfg.anim_duration;
+
     let state_var = format!("open_{}", module);
 
-    run_bg("eww", &["update", &format!("{}=false", state_var)]);
-    run_bg("eww", &["close", "closer"]);
-    thread::sleep(Duration::from_secs_f32(anim));
-    run_bg("eww", &["close", module]);
+    run("eww", &["update", &format!("{}=false", state_var)]);
+
+    if window_is_open(active, "closer") {
+        run("eww", &["close", "closer"]);
+    }
+
+    if window_is_open(active, module) {
+        thread::sleep(Duration::from_millis(anim.into()));
+        run("eww", &["close", module]);
+    }
 }
 
 pub fn action(args: &[String]) {
     println!("[action] args: {:?}", args);
 
+    if std::fs::exists("/tmp/ewwManager-window.lock").unwrap_or(false) {
+        println!("lock exists exiting");
+        exit(0);
+    }
+
+    println!("creating lock");
+    let _ = std::fs::File::create("/tmp/ewwManager-window.lock");
+
     let cfg = get_config();
     let modules = cfg.modules.clone();
     let anim = cfg.anim_duration;
 
-    let module = args.get(0).cloned(); // Option<String>
+    let active = get_active_windows();
+
+    let module = args.get(0).cloned();
 
     if module.is_none() {
         println!("[action] closing all");
 
-        run_bg("eww", &["close", "closer"]);
+        if window_is_open(&active, "closer") {
+            run("eww", &["close", "closer"]);
+        }
+        let mut args = vec!["update".to_string()];
+
+        args.extend(modules.iter().map(|m| format!("open_{}=false", m)));
+
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+
+        run("eww", &args_ref);
+
+        thread::sleep(Duration::from_millis(anim.into()));
+
+        let mut close_args = vec!["close"];
 
         for m in &modules {
-            run_bg("eww", &["update", &format!("open_{}=false", m)]);
+            if window_is_open(&active, m) {
+                close_args.push(m);
+            }
         }
 
-        thread::spawn(move || {
-            thread::sleep(Duration::from_secs_f32(anim));
-            for m in &modules {
-                run_bg("eww", &["close", m]);
-            }
-        });
+        if close_args.len() > 1 {
+            run("eww", &close_args);
+        }
 
+        let _ = std::fs::remove_file("/tmp/ewwManager-window.lock");
         return;
     }
 
     let module = module.unwrap();
     println!("[action] module: {}", module);
 
-    // If it's not a managed module, just toggle it
+    // unmanaged window → toggle
     if !modules.iter().any(|m| m == &module) {
         println!("[action] unmanaged window → toggling");
 
-        let windows = run("eww", &["list-windows"]);
-
-        if windows.contains(&format!("*{}", module)) {
-            run_bg("eww", &["close", &module]);
+        if window_is_open(&active, &module) {
+            run("eww", &["close", &module]);
         } else {
             run_bg("eww", &["open", &module]);
         }
 
+        let _ = std::fs::remove_file("/tmp/ewwManager-window.lock");
         return;
     }
 
-    let state_var = format!("open_{}", module);
-    let current = run("eww", &["get", &state_var]);
-
-    println!("[action] state {} = {}", state_var, current);
-
-    let is_open = current.trim().eq_ignore_ascii_case("true");
-
-    if is_open {
+    if window_is_open(&active, &module) {
         println!("[action] closing {}", module);
-        let handle = thread::spawn(move || close_module(&module));
-        handle.join().unwrap();
+        close_module(&module, &active);
     } else {
         println!("[action] opening {}", module);
-        let handle = thread::spawn(move || open_module(&module));
-        handle.join().unwrap();
+        open_module(&module, &active);
     }
+
+    println!("removing lock");
+    let _ = std::fs::remove_file("/tmp/ewwManager-window.lock");
 }
