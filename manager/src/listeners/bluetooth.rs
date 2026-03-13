@@ -1,6 +1,8 @@
-use std::process::{Command, Stdio};
-use std::io::{BufRead, BufReader};
 use serde::Serialize;
+use std::io::{BufRead, BufReader};
+use std::process::{Command, Stdio};
+
+use crate::listeners::send_to_socket;
 
 #[derive(Serialize)]
 struct BtInfo {
@@ -11,10 +13,7 @@ struct BtInfo {
 
 fn get_bt() {
     // Check if Bluetooth is powered
-    let output = Command::new("bluetoothctl")
-        .arg("show")
-        .output()
-        .unwrap();
+    let output = Command::new("bluetoothctl").arg("show").output().unwrap();
     let binding = String::from_utf8_lossy(&output.stdout);
     let powered = binding
         .lines()
@@ -23,8 +22,12 @@ fn get_bt() {
         .unwrap_or("");
 
     if powered != "yes" {
-        let info = BtInfo { on: false, name: "".into(), signal: "".into() };
-        println!("{}", serde_json::to_string(&info).unwrap());
+        let info = BtInfo {
+            on: false,
+            name: "".into(),
+            signal: "".into(),
+        };
+        send_to_socket("bluetooth", &serde_json::to_string(&info).unwrap()).unwrap();
         return;
     }
 
@@ -50,8 +53,12 @@ fn get_bt() {
     }
 
     if mac.is_empty() {
-        let info = BtInfo { on: true, name: "".into(), signal: "".into() };
-        println!("{}", serde_json::to_string(&info).unwrap());
+        let info = BtInfo {
+            on: true,
+            name: "".into(),
+            signal: "".into(),
+        };
+        send_to_socket("bluetooth", &serde_json::to_string(&info).unwrap()).unwrap();
         return;
     }
 
@@ -66,7 +73,12 @@ fn get_bt() {
     let name = info_text
         .lines()
         .find(|line| line.contains("Name:"))
-        .map(|line| line.trim_start().trim_start_matches("Name:").trim().to_string())
+        .map(|line| {
+            line.trim_start()
+                .trim_start_matches("Name:")
+                .trim()
+                .to_string()
+        })
         .unwrap_or_default();
 
     let rssi = info_text
@@ -75,8 +87,12 @@ fn get_bt() {
         .map(|line| line.split_whitespace().nth(1).unwrap_or("").to_string())
         .unwrap_or_default();
 
-    let info = BtInfo { on: true, name, signal: rssi };
-    println!("{}", serde_json::to_string(&info).unwrap());
+    let info = BtInfo {
+        on: true,
+        name,
+        signal: rssi,
+    };
+    send_to_socket("bluetooth", &serde_json::to_string(&info).unwrap()).unwrap();
 }
 
 pub fn run() {

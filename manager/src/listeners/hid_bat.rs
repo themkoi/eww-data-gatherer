@@ -2,6 +2,8 @@ use serde::Serialize;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 
+use crate::listeners::send_to_socket;
+
 #[derive(Serialize, Clone, Default)]
 struct HidBattery {
     device: String,
@@ -56,7 +58,10 @@ fn get_all_devices() -> Vec<HidBattery> {
     let list = String::from_utf8_lossy(&output.stdout);
 
     list.lines()
-        .filter(|p| p.contains("battery") && !p.contains("battery_BAT")) // skip internal batteries
+        .filter(|p| {
+            (p.contains("battery") || p.contains("headphones") || p.contains("hid"))
+                && !p.contains("battery_BAT")
+        }) // skip internal batteries
         .filter_map(parse_device_info)
         .collect()
 }
@@ -79,17 +84,14 @@ fn print_all(limit: usize) {
         devices: shown,
         remaining,
     };
-    println!("{}", serde_json::to_string(&wrapper).unwrap());
-    std::io::stdout().flush().unwrap();
+    send_to_socket("hid_bat", &serde_json::to_string(&wrapper).unwrap()).unwrap();
 }
 
 pub fn run() {
     let limit = 2;
 
-    // Print all devices initially
     print_all(limit);
 
-    // Monitor UPower for changes
     let mut upower = Command::new("upower")
         .args(&["--monitor"])
         .stdout(Stdio::piped())

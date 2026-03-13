@@ -1,8 +1,9 @@
+use crate::config;
+use crate::listeners::send_to_socket;
 use std::fs;
-use std::process::{Command, Stdio};
 use std::io::BufRead;
 use std::io::BufReader;
-use crate::config;
+use std::process::{Command, Stdio};
 
 fn get_brightness() {
     let cfg = config::get_config();
@@ -17,7 +18,7 @@ fn get_brightness() {
         .and_then(|s| s.trim().parse().ok())
         .unwrap_or(1);
 
-    println!("{}", cur * 100 / max);
+    send_to_socket("brightness", &format!("{}", cur * 100 / max)).unwrap();
 }
 
 pub fn run() {

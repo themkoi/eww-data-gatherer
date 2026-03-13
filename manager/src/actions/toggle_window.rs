@@ -61,16 +61,18 @@ fn open_module(module: &str, active: &[String]) {
     run("eww", &["update", &format!("{}=true", state_var)]);
 
     // close other module states
-    let updates = modules
-        .iter()
-        .filter(|m| *m != module)
-        .map(|m| format!("open_{}=false", m))
-        .collect::<Vec<_>>()
-        .join(",");
+    let mut args = vec!["update".to_string()];
 
-    if !updates.is_empty() {
-        run("eww", &["update", &updates]);
-    }
+    args.extend(
+        modules
+            .iter()
+            .filter(|m| *m != module)
+            .map(|m| format!("open_{}=false", m)),
+    );
+
+    let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+
+    run("eww", &args_ref);
 
     // close other open windows
     let mut close_args = vec!["close"];

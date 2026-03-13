@@ -1,7 +1,11 @@
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
+use std::thread::sleep;
+use std::time::{Duration, Instant};
 
-#[derive(Debug,Clone,serde::Serialize)]
+use crate::listeners::send_to_socket;
+
+#[derive(Debug, Clone, serde::Serialize, PartialEq)]
 struct AudioSink {
     index: u32,
     name: String,
@@ -13,7 +17,6 @@ struct AudioSink {
 }
 
 fn get_sinks() -> Vec<AudioSink> {
-    // Get default sink
     let default_sink = Command::new("pactl")
         .args(["info"])
         .output()
@@ -25,13 +28,13 @@ fn get_sinks() -> Vec<AudioSink> {
                 .map(|l| l["Default Sink:".len()..].trim().to_string())
         });
 
-    // Get sink list in a parseable format
     let output = Command::new("pactl")
         .args(["list", "sinks"])
         .output()
         .expect("Failed to run pactl");
 
     let s = String::from_utf8_lossy(&output.stdout);
+
     let mut sinks = vec![];
     let mut current = AudioSink {
         index: 0,
@@ -45,10 +48,12 @@ fn get_sinks() -> Vec<AudioSink> {
 
     for line in s.lines() {
         let line = line.trim();
+
         if line.starts_with("Sink #") {
             if !current.name.is_empty() {
                 sinks.push(current.clone());
             }
+
             current = AudioSink {
                 index: line["Sink #".len()..].parse().unwrap_or(0),
                 name: "".into(),
@@ -65,17 +70,16 @@ fn get_sinks() -> Vec<AudioSink> {
         } else if line.starts_with("Mute:") {
             current.muted = line["Mute:".len()..].trim() == "yes";
         } else if line.starts_with("Volume:") {
-            // Example: Volume: front-left: 65536 / 100% / 0.00 dB, ...
             if let Some(percent) = line.split('/').nth(1) {
                 current.volume = percent.trim().trim_end_matches('%').parse().unwrap_or(0);
             }
         }
     }
+
     if !current.name.is_empty() {
         sinks.push(current);
     }
 
-    // mark default sink
     if let Some(default) = default_sink {
         for sink in &mut sinks {
             sink.is_default = sink.name == default;
@@ -88,22 +92,39 @@ fn get_sinks() -> Vec<AudioSink> {
 #[derive(serde::Serialize)]
 struct SinksWrapper {
     sinks: Vec<AudioSink>,
-    remaining: usize,
 }
 
 fn print_sinks_json(sinks: &[AudioSink], limit: usize) {
     let shown: Vec<AudioSink> = sinks.iter().take(limit).cloned().collect();
-    let remaining = sinks.len().saturating_sub(limit);
+    let wrapper = SinksWrapper { sinks: shown };
 
-    let wrapper = SinksWrapper { sinks: shown, remaining };
-
-    println!("{}", serde_json::to_string(&wrapper).unwrap());
+    send_to_socket("output_audio", &serde_json::to_string(&wrapper).unwrap()).unwrap();
+    std::io::stdout().flush().unwrap();
 }
 
+fn only_volume_changed(old: &[AudioSink], new: &[AudioSink]) -> bool {
+    if old.len() != new.len() {
+        return false;
+    }
+
+    for new_sink in new {
+        let Some(old_sink) = old.iter().find(|s| s.index == new_sink.index) else {
+            return false;
+        };
+
+        if old_sink.name != new_sink.name
+            || old_sink.description != new_sink.description
+            || old_sink.muted != new_sink.muted
+            || old_sink.is_default != new_sink.is_default
+        {
+            return false;
+        }
+    }
+
+    true
+}
 
 pub fn run() {
-    print_sinks_json(&get_sinks(),10);
-
     let mut pactl = Command::new("pactl")
         .arg("subscribe")
         .stdout(Stdio::piped())
@@ -111,13 +132,42 @@ pub fn run() {
         .expect("Failed to run pactl subscribe");
 
     let stdout = pactl.stdout.take().unwrap();
-    let reader = BufReader::new(stdout);
+    let mut lines = BufReader::new(stdout).lines();
 
-    for line in reader.lines() {
-        if let Ok(line) = line {
-            if line.contains("on sink") || line.contains("server") {
-                print_sinks_json(&get_sinks(),10);
+    let debounce = Duration::from_millis(400);
+
+    let mut last_state = get_sinks();
+    print_sinks_json(&last_state, 10);
+
+    let mut last_change = Instant::now();
+    let mut pending = false;
+
+    loop {
+        if let Some(Ok(line)) = lines.next() {
+            if line.contains("sink") || line.contains("server") {
+                let new_state = get_sinks();
+
+                if new_state != last_state {
+                    let volume_only = only_volume_changed(&last_state, &new_state);
+
+                    last_state = new_state;
+
+                    if volume_only {
+                        last_change = Instant::now();
+                        pending = true;
+                    } else {
+                        print_sinks_json(&last_state, 10);
+                        pending = false;
+                    }
+                }
             }
         }
+
+        if pending && last_change.elapsed() >= debounce {
+            print_sinks_json(&last_state, 10);
+            pending = false;
+        }
+
+        sleep(Duration::from_millis(40));
     }
 }

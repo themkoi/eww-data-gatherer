@@ -1,6 +1,8 @@
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 
+use crate::listeners::send_to_socket;
+
 fn get_volume() {
     let output = Command::new("pamixer")
         .arg("--get-volume-human")
@@ -12,7 +14,7 @@ fn get_volume() {
         .trim()
         .trim_end_matches('%');
 
-    println!("{vol}");
+    send_to_socket("volume", &format!("{vol}")).unwrap();
 }
 
 pub fn run() {

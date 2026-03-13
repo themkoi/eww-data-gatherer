@@ -1,6 +1,8 @@
 use std::{thread, time::Duration, process::Command, io::{Write, stdout}};
 use serde::Serialize;
 
+use crate::listeners::send_to_socket;
+
 #[derive(Serialize, Clone)]
 struct TrackInfo {
     title: String,
@@ -131,7 +133,7 @@ pub fn run() {
             status,
         };
 
-        println!("{}", serde_json::to_string(&track).unwrap());
+        send_to_socket("player", &serde_json::to_string(&track).unwrap()).unwrap();
         stdout().flush().unwrap();
 
         thread::sleep(Duration::from_millis(500));

@@ -1,6 +1,7 @@
-use std::os::unix::net::UnixListener;
-use std::io::{BufRead, BufReader};
 use crate::config;
+use crate::listeners::send_to_socket;
+use std::io::{BufRead, BufReader};
+use std::os::unix::net::UnixListener;
 
 pub fn run() {
     let cfg = config::get_config();
@@ -38,8 +39,8 @@ pub fn run() {
             };
 
             match line.trim() {
-                "autoidle: true" => println!("true"),
-                "autoidle: false" => println!("false"),
+                "autoidle: true" => send_to_socket("auto_idle", "true").unwrap(),
+                "autoidle: false" => send_to_socket("auto_idle", "false").unwrap(),
                 _ => continue,
             }
         }
