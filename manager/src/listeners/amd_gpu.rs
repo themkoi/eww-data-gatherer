@@ -1,103 +1,65 @@
-use serde::{Deserialize, Serialize};
+use crate::config;
+use serde::Serialize;
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader};
-use std::process::{Command, Stdio};
+use std::fs;
+use std::thread;
+use std::time::Duration;
 
 use crate::listeners::send_to_socket;
 
-#[derive(Debug, Deserialize)]
-struct AmdgpuTopRoot {
-    devices: Vec<Device>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Device {
-    #[serde(rename = "Info")]
-    info: DeviceInfo,
-    #[serde(rename = "Sensors")]
-    sensors: Sensors,
-    #[serde(rename = "VRAM")]
-    vram: VramData,
-    #[serde(rename = "gpu_activity")]
-    gpu_activity: GpuActivity,
-}
-
-#[derive(Debug, Deserialize)]
-struct DeviceInfo {
-    #[serde(rename = "DeviceName")]
-    name: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct Sensors {
-    #[serde(rename = "Edge Temperature")]
-    edge_temp: ValueUnit<f64>,
-}
-
-#[derive(Debug, Deserialize)]
-struct VramData {
-    #[serde(rename = "Total VRAM")]
-    total_vram: ValueUnit<u64>,
-    #[serde(rename = "Total VRAM Usage")]
-    total_vram_usage: ValueUnit<u64>,
-}
-
-#[derive(Debug, Deserialize)]
-struct GpuActivity {
-    #[serde(rename = "GFX")]
-    gfx: ValueUnit<f64>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ValueUnit<T> {
-    value: Option<T>,
-}
-
 #[derive(Serialize)]
 struct GpuStats {
-    name: String, // Keep the original name here
+    name: String,
     load_pct: f64,
     vram_used_mib: u64,
     vram_total_mib: u64,
     temp_c: f64,
 }
 
+fn read_u64(path: &str) -> u64 {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+fn read_f64(path: &str) -> f64 {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0.0)
+}
+
 pub fn run() {
-    let mut proc = Command::new("amdgpu_top")
-        .arg("-J")
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to run amdgpu_top -J");
+    let cfg = config::get_config();
+    let gpus = &cfg.gpus;
 
-    let stdout = proc.stdout.take().expect("Failed to open stdout");
-    let reader = BufReader::new(stdout);
+    loop {
+        let mut output = BTreeMap::new();
 
-    for line in reader.lines() {
-        if let Ok(json_line) = line {
-            if let Ok(root) = serde_json::from_str::<AmdgpuTopRoot>(&json_line) {
-                let mut output = BTreeMap::new();
+        for gpu in gpus {
+            let load = read_f64(&format!("{}/gpu_busy_percent", gpu.path));
 
-                for device in root.devices {
-                    // Create the clean key: lowercase and replace spaces with underscores
-                    let clean_key = device.info.name
-                        .to_lowercase()
-                        .replace(' ', "_");
+            let vram_used = read_u64(&format!("{}/mem_info_vram_used", gpu.path)) / 1024 / 1024;
+            let vram_total = read_u64(&format!("{}/mem_info_vram_total", gpu.path)) / 1024 / 1024;
 
-                    let stats = GpuStats {
-                        name: device.info.name, // Original name
-                        load_pct: device.gpu_activity.gfx.value.unwrap_or(0.0),
-                        vram_used_mib: device.vram.total_vram_usage.value.unwrap_or(0),
-                        vram_total_mib: device.vram.total_vram.value.unwrap_or(0),
-                        temp_c: device.sensors.edge_temp.value.unwrap_or(0.0),
-                    };
-                    
-                    output.insert(clean_key, stats);
-                }
+            let temp = read_u64(&format!("{}/hwmon/hwmon4/temp1_input", gpu.path)) as f64 / 1000.0;
 
-                if let Ok(final_json) = serde_json::to_string(&output) {
-                    send_to_socket("amd_gpu", &final_json).unwrap();
-                }
-            }
+            let stats = GpuStats {
+                name: gpu.name.to_string(),
+                load_pct: load,
+                vram_used_mib: vram_used,
+                vram_total_mib: vram_total,
+                temp_c: temp,
+            };
+
+            output.insert(gpu.name.to_string(), stats);
         }
+
+        if let Ok(final_json) = serde_json::to_string(&output) {
+            let _ = send_to_socket("amd_gpu", &final_json);
+        }
+
+        thread::sleep(Duration::from_secs(1));
     }
 }

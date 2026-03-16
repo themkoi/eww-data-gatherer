@@ -10,6 +10,12 @@ pub fn get_config() -> &'static DaemonConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GpuDevice {
+    pub name: String,
+    pub path: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DaemonConfig {
     pub brightness_path: String,
     pub idle_manager: String,
@@ -19,6 +25,8 @@ pub struct DaemonConfig {
 
     pub modules: Vec<String>,
     pub anim_duration: u16,
+
+    pub gpus: Vec<GpuDevice>,
 }
 
 fn default_config() -> DaemonConfig {
@@ -35,6 +43,13 @@ fn default_config() -> DaemonConfig {
             "power_menu".to_string(),
         ],
         anim_duration: 200,
+
+        gpus: vec![
+            GpuDevice {
+                name: "amd_radeon_780m_graphics".to_string(),
+                path: "/sys/class/drm/card1/device".to_string(),
+            },
+        ],
     }
 }
 

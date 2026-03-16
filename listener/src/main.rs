@@ -1,10 +1,22 @@
 use std::env;
 use std::fs;
-use std::io::{BufRead, BufReader};
-use std::os::unix::net::UnixListener;
+use std::io::{self, BufRead, BufReader, Write};
+use std::os::unix::net::{UnixListener, UnixStream};
+use std::thread;
 
-fn listen_to_socket(name: &str) -> std::io::Result<()> {
-    let path = "/tmp/EwwManager_".to_string() + name + ".sock";
+fn handle_client(stream: UnixStream) {
+    let reader = BufReader::new(stream);
+
+    for line in reader.lines().flatten() {
+        if !line.trim().is_empty() {
+            println!("{line}");
+            io::stdout().flush().unwrap();
+        }
+    }
+}
+
+fn listen_to_socket(name: &str) -> io::Result<()> {
+    let path = format!("/tmp/EwwManager_{}.sock", name);
 
     if fs::metadata(&path).is_ok() {
         let _ = fs::remove_file(&path);
@@ -13,11 +25,11 @@ fn listen_to_socket(name: &str) -> std::io::Result<()> {
     let listener = UnixListener::bind(&path)?;
 
     for stream in listener.incoming() {
-        let stream = stream?;
-        let reader = BufReader::with_capacity(256, stream);
-
-        for line in reader.lines() {
-            println!(" {}", line?);
+        match stream {
+            Ok(stream) => {
+                thread::spawn(move || handle_client(stream));
+            }
+            Err(e) => eprintln!("connection error: {e}"),
         }
     }
 
@@ -25,7 +37,7 @@ fn listen_to_socket(name: &str) -> std::io::Result<()> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let arg = env::args().nth(1).unwrap();
+    let arg = env::args().nth(1).expect("Socket name required");
     listen_to_socket(&arg)?;
     Ok(())
 }

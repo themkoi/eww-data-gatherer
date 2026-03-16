@@ -1,8 +1,3 @@
-use std::thread;
-use std::time::Duration;
-use std::{os::unix::net::UnixStream, path::PathBuf};
-use std::io::Write;
-
 pub mod volume;
 pub mod brightness;
 pub mod network;
@@ -16,25 +11,31 @@ pub mod input_audio;
 pub mod playback_audio;
 pub mod amd_gpu;
 
-fn send_to_socket(name: &str, message: &str) -> std::io::Result<()> {
-    let mut path = PathBuf::from("/tmp");
-    path.push(format!("{}{}.sock", "EwwManager_", name));
+use std::{
+    io::Write,
+    os::unix::net::UnixStream,
+    path::PathBuf,
+    thread,
+    time::Duration,
+};
 
-    // Wait until a listener is ready
+pub fn send_to_socket(name: &str, message: &str) -> std::io::Result<()> {
+    let mut path = PathBuf::from("/tmp");
+    path.push(format!("EwwManager_{}.sock", name));
+
     let mut stream = loop {
         match UnixStream::connect(&path) {
-            Ok(s) => break s, // connected successfully
+            Ok(s) => break s,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound
-                     || e.kind() == std::io::ErrorKind::ConnectionRefused => {
-                // socket not ready yet, wait a bit
+                || e.kind() == std::io::ErrorKind::ConnectionRefused =>
+            {
                 thread::sleep(Duration::from_millis(100));
             }
-            Err(e) => return Err(e), // other errors propagate
+            Err(e) => return Err(e),
         }
     };
 
     writeln!(stream, "{message}")?;
     stream.flush()?;
-
     Ok(())
 }

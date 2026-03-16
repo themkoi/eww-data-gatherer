@@ -71,7 +71,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        // Optional: wait for all threads to finish
         for h in handles {
             let _ = h.join();
         }

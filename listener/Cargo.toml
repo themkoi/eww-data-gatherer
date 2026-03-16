@@ -6,8 +6,14 @@ edition = "2024"
 [dependencies]
 
 [profile.release]
-opt-level = "z"
-lto = true
-codegen-units = 1
+opt-level = "z"               # Optimize for size
+lto = "fat"                   # Full LTO for maximum code size reduction
+codegen-units = 1             # Single codegen unit for better LTO
 panic = "abort"
-strip = true 
+strip = true                   # Strip symbols from final binary
+debug = 0                     # No debug info
+debug-assertions = false      # Disable debug asserts
+overflow-checks = false       # Disable integer overflow checks
+rpath = false                 # Disable rpath info
+incremental = false           # Disable incremental compilation
+test = false                  # Disable test harness code
