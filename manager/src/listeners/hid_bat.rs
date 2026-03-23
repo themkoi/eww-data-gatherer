@@ -2,8 +2,6 @@ use serde::Serialize;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 
-use crate::listeners::send_to_socket;
-
 #[derive(Serialize, Clone, Default)]
 struct HidBattery {
     device: String,
@@ -84,7 +82,7 @@ fn print_all(limit: usize) {
         devices: shown,
         remaining,
     };
-    send_to_socket("hid_bat", &serde_json::to_string(&wrapper).unwrap()).unwrap();
+    println!("{}", &serde_json::to_string(&wrapper).unwrap());
 }
 
 pub fn run() {

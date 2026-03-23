@@ -41,6 +41,7 @@ fn default_config() -> DaemonConfig {
             "control_center".to_string(),
             "date".to_string(),
             "power_menu".to_string(),
+            "closer-orbit".to_string(),
         ],
         anim_duration: 200,
 

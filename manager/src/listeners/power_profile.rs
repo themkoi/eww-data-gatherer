@@ -2,8 +2,6 @@ use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
 use serde::Serialize;
 
-use crate::listeners::send_to_socket;
-
 #[derive(Serialize)]
 struct PowerInfo {
     profile: String,
@@ -20,7 +18,7 @@ fn get_profile() {
         .to_string();
 
     let info = PowerInfo { profile };
-    send_to_socket("power_profile", &serde_json::to_string(&info).unwrap()).unwrap();
+    println!("{}", &serde_json::to_string(&info).unwrap());
 }
 
 pub fn run() {

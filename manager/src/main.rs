@@ -1,4 +1,4 @@
-use std::{env, error::Error, thread};
+use std::{env, error::Error};
 
 use log::debug;
 mod actions;
@@ -16,63 +16,35 @@ fn main() -> Result<(), Box<dyn Error>> {
     let arg = &args[1];
     if arg == "-h" || arg == "--help" {
         return Ok(());
-    } else if arg == "gatherer" {
-        let listener_args = &args[2..];
-        let all = listener_args.len() == 1 && listener_args[0] == "all";
-
-        let listeners_to_run: Vec<String> = if all {
-            vec![
-                "brightness",
-                "network",
-                "player",
-                "volume",
-                "auto_idle",
-                "bluetooth",
-                "power_profile",
-                "hid_bat",
-                "output_audio",
-                "playback_audio",
-                "input_audio",
-                "amd_gpu",
-            ]
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect()
-        } else {
-            listener_args.iter().map(|s| s.to_string()).collect()
-        };
-
-        let mut handles = Vec::new();
-
-        for listener in listeners_to_run {
-            debug!("starting gatherer {}", listener.as_str());
-
-            let handle = match listener.as_str() {
-                "brightness" => Some(thread::spawn(|| listeners::brightness::run())),
-                "network" => Some(thread::spawn(|| listeners::network::run())),
-                "player" => Some(thread::spawn(|| listeners::player::run())),
-                "volume" => Some(thread::spawn(|| listeners::volume::run())),
-                "auto_idle" => Some(thread::spawn(|| listeners::auto_idle::run())),
-                "bluetooth" => Some(thread::spawn(|| listeners::bluetooth::run())),
-                "power_profile" => Some(thread::spawn(|| listeners::power_profile::run())),
-                "output_audio" => Some(thread::spawn(|| listeners::output_audio::run())),
-                "hid_bat" => Some(thread::spawn(|| listeners::hid_bat::run())),
-                "playback_audio" => Some(thread::spawn(|| listeners::playback_audio::run())),
-                "input_audio" => Some(thread::spawn(|| listeners::input_audio::run())),
-                "amd_gpu" => Some(thread::spawn(|| listeners::amd_gpu::run())),
-                _ => {
-                    debug!("unknown gatherer: {}", listener.as_str());
-                    None
-                }
-            };
-
-            if let Some(h) = handle {
-                handles.push(h);
-            }
-        }
-
-        for h in handles {
-            let _ = h.join();
+    } else if arg == "listener" {
+        let arg = &args[2];
+        debug!("starting listener {}", arg);
+        if arg == "brightness" {
+            listeners::brightness::run();
+        } else if arg == "network" {
+            listeners::network::run();
+        } else if arg == "player" {
+            listeners::player::run();
+        } else if arg == "volume" {
+            listeners::volume::run();
+        } else if arg == "auto_idle" {
+            listeners::auto_idle::run();
+        } else if arg == "bluetooth" {
+            listeners::bluetooth::run();
+        } else if arg == "power_profile" {
+            listeners::power_profile::run();
+        } else if arg == "hid_bat" {
+            listeners::hid_bat::run();
+        } else if arg == "output_audio" {
+            listeners::output_audio::run();
+        } else if arg == "input_audio" {
+            listeners::input_audio::run();
+        }  else if arg == "playback_audio" {
+            listeners::playback_audio::run();
+        } else if arg == "recording_audio" {
+            listeners::recording_audio::run();
+        } else if arg == "amd_gpu" {
+            listeners::amd_gpu::run();
         }
     } else if arg == "action" {
         let arg = &args[2];

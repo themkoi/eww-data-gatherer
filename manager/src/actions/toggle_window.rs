@@ -41,6 +41,9 @@ fn window_is_open(active: &[String], name: &str) -> bool {
 }
 
 fn open_module(module: &str, active: &[String]) {
+    if module != "closer-orbit" {
+        run_bg("orbit", &["hide"]);
+    }
     let cfg = get_config();
     let modules = cfg.modules.clone();
     let anim = cfg.anim_duration;
@@ -105,6 +108,7 @@ fn close_module(module: &str, active: &[String]) {
         thread::sleep(Duration::from_millis(anim.into()));
         run("eww", &["close", module]);
     }
+    run_bg("orbit", &["hide"]);
 }
 
 pub fn action(args: &[String]) {

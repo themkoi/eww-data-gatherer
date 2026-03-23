@@ -1,5 +1,4 @@
 use crate::config;
-use crate::listeners::send_to_socket;
 use std::fs;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -18,7 +17,7 @@ fn get_brightness() {
         .and_then(|s| s.trim().parse().ok())
         .unwrap_or(1);
 
-    send_to_socket("brightness", &format!("{}", cur * 100 / max)).unwrap();
+    println!("{}", &format!("{}", cur * 100 / max));
 }
 
 pub fn run() {

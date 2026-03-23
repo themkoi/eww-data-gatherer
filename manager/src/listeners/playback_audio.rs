@@ -6,8 +6,6 @@ use std::process::{Command, Stdio};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use crate::listeners::send_to_socket;
-
 #[derive(Debug, Clone, PartialEq, Serialize)]
 struct SinkInput {
     index: u32,
@@ -192,7 +190,7 @@ fn print_state(map: &HashMap<u32, SinkInput>) {
         "playbacks": enriched,
     });
 
-    send_to_socket("playback_audio", &serde_json::to_string(&out).unwrap()).unwrap();
+    println!("{}", &serde_json::to_string(&out).unwrap());
 }
 
 fn only_volume_changed(

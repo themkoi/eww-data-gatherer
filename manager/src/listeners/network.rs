@@ -4,8 +4,6 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
 
-use crate::listeners::send_to_socket;
-
 #[derive(Serialize)]
 struct WifiStatus {
     essid: String,
@@ -45,7 +43,7 @@ pub fn run() {
     thread::sleep(Duration::from_millis(50));
     let status = get_wifi_status();
     {
-        send_to_socket("network", &serde_json::to_string(&status).unwrap()).unwrap();
+        println!("{}", &serde_json::to_string(&status).unwrap());
     }
 
     // Small sleep to stabilize interfaces
@@ -63,6 +61,6 @@ pub fn run() {
 
     for _line in reader.lines() {
         let status = get_wifi_status();
-        send_to_socket("network", &serde_json::to_string(&status).unwrap()).unwrap();
+        println!("{}", &serde_json::to_string(&status).unwrap());
     }
 }

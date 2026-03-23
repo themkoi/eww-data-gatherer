@@ -2,8 +2,6 @@ use serde::Serialize;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 
-use crate::listeners::send_to_socket;
-
 #[derive(Serialize)]
 struct BtInfo {
     on: bool,
@@ -27,7 +25,8 @@ fn get_bt() {
             name: "".into(),
             signal: "".into(),
         };
-        send_to_socket("bluetooth", &serde_json::to_string(&info).unwrap()).unwrap();
+        let json = serde_json::to_string(&info).unwrap();
+        println!("{}", json);
         return;
     }
 
@@ -58,7 +57,8 @@ fn get_bt() {
             name: "".into(),
             signal: "".into(),
         };
-        send_to_socket("bluetooth", &serde_json::to_string(&info).unwrap()).unwrap();
+        let json = serde_json::to_string(&info).unwrap();
+        println!("{}", json);
         return;
     }
 
@@ -92,7 +92,8 @@ fn get_bt() {
         name,
         signal: rssi,
     };
-    send_to_socket("bluetooth", &serde_json::to_string(&info).unwrap()).unwrap();
+    let json = serde_json::to_string(&info).unwrap();
+    println!("{}", json);
 }
 
 pub fn run() {

@@ -5,8 +5,6 @@ use std::fs;
 use std::thread;
 use std::time::Duration;
 
-use crate::listeners::send_to_socket;
-
 #[derive(Serialize)]
 struct GpuStats {
     name: String,
@@ -57,7 +55,7 @@ pub fn run() {
         }
 
         if let Ok(final_json) = serde_json::to_string(&output) {
-            let _ = send_to_socket("amd_gpu", &final_json);
+            println!("{}", &final_json);
         }
 
         thread::sleep(Duration::from_secs(1));

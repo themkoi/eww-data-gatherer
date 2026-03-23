@@ -4,7 +4,7 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, serde::Serialize, PartialEq)]
-struct AudioSink {
+struct AudioSource {
     index: u32,
     name: String,
     description: String,
@@ -14,27 +14,27 @@ struct AudioSink {
     is_default: bool,
 }
 
-fn get_sinks() -> Vec<AudioSink> {
-    let default_sink = Command::new("pactl")
+fn get_sources() -> Vec<AudioSource> {
+    let default_source = Command::new("pactl")
         .args(["info"])
         .output()
         .ok()
         .and_then(|out| {
             let s = String::from_utf8_lossy(&out.stdout);
             s.lines()
-                .find(|l| l.starts_with("Default Sink:"))
-                .map(|l| l["Default Sink:".len()..].trim().to_string())
+                .find(|l| l.starts_with("Default Source:"))
+                .map(|l| l["Default Source:".len()..].trim().to_string())
         });
 
-    let output = Command::new("pactl")
-        .args(["list", "sinks"])
+    let inputs = Command::new("pactl")
+        .args(["list", "sources"])
         .output()
         .expect("Failed to run pactl");
 
-    let s = String::from_utf8_lossy(&output.stdout);
+    let s = String::from_utf8_lossy(&inputs.stdout);
 
-    let mut sinks = vec![];
-    let mut current = AudioSink {
+    let mut sources = vec![];
+    let mut current = AudioSource {
         index: 0,
         name: "".into(),
         description: "".into(),
@@ -47,12 +47,12 @@ fn get_sinks() -> Vec<AudioSink> {
     for line in s.lines() {
         let line = line.trim();
 
-        if line.starts_with("Sink #") {
+        if line.starts_with("Source #") {
             if !current.name.is_empty() {
-                sinks.push(current.clone());
+                sources.push(current.clone());
             }
 
-            current = AudioSink {
+            current = AudioSource {
                 index: line["Sink #".len()..].parse().unwrap_or(0),
                 name: "".into(),
                 description: "".into(),
@@ -75,32 +75,32 @@ fn get_sinks() -> Vec<AudioSink> {
     }
 
     if !current.name.is_empty() {
-        sinks.push(current);
+        sources.push(current);
     }
 
-    if let Some(default) = default_sink {
-        for sink in &mut sinks {
-            sink.is_default = sink.name == default;
+    if let Some(default) = default_source {
+        for source in &mut sources {
+            source.is_default = source.name == default;
         }
     }
 
-    sinks
+    sources
 }
 
 #[derive(serde::Serialize)]
-struct SinksWrapper {
-    sinks: Vec<AudioSink>,
+struct SourcesWrapper {
+    sources: Vec<AudioSource>,
 }
 
-fn print_sinks_json(sinks: &[AudioSink], limit: usize) {
-    let shown: Vec<AudioSink> = sinks.iter().take(limit).cloned().collect();
-    let wrapper = SinksWrapper { sinks: shown };
+fn print_sources_json(sources: &[AudioSource], limit: usize) {
+    let shown: Vec<AudioSource> = sources.iter().take(limit).cloned().collect();
+    let wrapper = SourcesWrapper { sources: shown };
 
     println!("{}", &serde_json::to_string(&wrapper).unwrap());
     std::io::stdout().flush().unwrap();
 }
 
-fn only_volume_changed(old: &[AudioSink], new: &[AudioSink]) -> bool {
+fn only_volume_changed(old: &[AudioSource], new: &[AudioSource]) -> bool {
     if old.len() != new.len() {
         return false;
     }
@@ -134,8 +134,8 @@ pub fn run() {
 
     let debounce = Duration::from_millis(400);
 
-    let mut last_state = get_sinks();
-    print_sinks_json(&last_state, 10);
+    let mut last_state = get_sources();
+    print_sources_json(&last_state, 10);
 
     let mut last_change = Instant::now();
     let mut pending = false;
@@ -143,7 +143,7 @@ pub fn run() {
     loop {
         if let Some(Ok(line)) = lines.next() {
             if line.contains("sink") || line.contains("server") {
-                let new_state = get_sinks();
+                let new_state = get_sources();
 
                 if new_state != last_state {
                     let volume_only = only_volume_changed(&last_state, &new_state);
@@ -154,7 +154,7 @@ pub fn run() {
                         last_change = Instant::now();
                         pending = true;
                     } else {
-                        print_sinks_json(&last_state, 10);
+                        print_sources_json(&last_state, 10);
                         pending = false;
                     }
                 }
@@ -162,7 +162,7 @@ pub fn run() {
         }
 
         if pending && last_change.elapsed() >= debounce {
-            print_sinks_json(&last_state, 10);
+            print_sources_json(&last_state, 10);
             pending = false;
         }
 

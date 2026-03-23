@@ -3,8 +3,6 @@ use std::process::{Command, Stdio};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use crate::listeners::send_to_socket;
-
 #[derive(Debug, Clone, serde::Serialize, PartialEq)]
 struct AudioSource {
     index: u32,
@@ -28,12 +26,12 @@ fn get_sources() -> Vec<AudioSource> {
                 .map(|l| l["Default Source:".len()..].trim().to_string())
         });
 
-    let inputs = Command::new("pactl")
+    let output = Command::new("pactl")
         .args(["list", "sources"])
         .output()
         .expect("Failed to run pactl");
 
-    let s = String::from_utf8_lossy(&inputs.stdout);
+    let s = String::from_utf8_lossy(&output.stdout);
 
     let mut sources = vec![];
     let mut current = AudioSource {
@@ -55,7 +53,7 @@ fn get_sources() -> Vec<AudioSource> {
             }
 
             current = AudioSource {
-                index: line["Sink #".len()..].parse().unwrap_or(0),
+                index: line["Source #".len()..].parse().unwrap_or(0),
                 name: "".into(),
                 description: "".into(),
                 icon: "audio-speakers".into(),
@@ -98,7 +96,7 @@ fn print_sources_json(sources: &[AudioSource], limit: usize) {
     let shown: Vec<AudioSource> = sources.iter().take(limit).cloned().collect();
     let wrapper = SourcesWrapper { sources: shown };
 
-    send_to_socket("input_audio", &serde_json::to_string(&wrapper).unwrap()).unwrap();
+    println!("{}", &serde_json::to_string(&wrapper).unwrap());
     std::io::stdout().flush().unwrap();
 }
 
@@ -107,15 +105,15 @@ fn only_volume_changed(old: &[AudioSource], new: &[AudioSource]) -> bool {
         return false;
     }
 
-    for new_sink in new {
-        let Some(old_sink) = old.iter().find(|s| s.index == new_sink.index) else {
+    for new_source in new {
+        let Some(old_source) = old.iter().find(|s| s.index == new_source.index) else {
             return false;
         };
 
-        if old_sink.name != new_sink.name
-            || old_sink.description != new_sink.description
-            || old_sink.muted != new_sink.muted
-            || old_sink.is_default != new_sink.is_default
+        if old_source.name != new_source.name
+            || old_source.description != new_source.description
+            || old_source.muted != new_source.muted
+            || old_source.is_default != new_source.is_default
         {
             return false;
         }
@@ -144,7 +142,7 @@ pub fn run() {
 
     loop {
         if let Some(Ok(line)) = lines.next() {
-            if line.contains("sink") || line.contains("server") {
+            if line.contains("source") || line.contains("server") {
                 let new_state = get_sources();
 
                 if new_state != last_state {
