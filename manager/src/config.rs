@@ -33,13 +33,12 @@ fn default_config() -> DaemonConfig {
     DaemonConfig {
         brightness_path: "/sys/class/backlight/amdgpu_bl1".to_string(),
         idle_manager: "swayidle".to_string(),
-        idle_start_script: "/Documents/scripts/niri/launch-idle-manage.sh".to_string(),
+        idle_start_script: "~/Documents/scripts/niri/launch-idle-manage.sh".to_string(),
         ipc_socket: "/tmp/eww-res-daemon.sock".to_string(),
-        com_on_output: "eww reload".to_string(),
+        com_on_output: "~/Documents/scripts/niri/monitor-hotplug.sh".to_string(),
 
         modules: vec![
             "control_center".to_string(),
-            "date".to_string(),
             "power_menu".to_string(),
             "closer-orbit".to_string(),
         ],

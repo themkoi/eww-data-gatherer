@@ -36,8 +36,7 @@ pub fn action() {
     } else {
         send_notification("swayidle Status", "swayidle is not running. Starting it...");
         let launch_script = format!(
-            "{}{}",
-            std::env::var("HOME").unwrap(),
+            "{}",
             cfg.idle_start_script
         );
 
